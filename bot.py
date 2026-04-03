@@ -2,38 +2,65 @@ import telebot
 import time
 import threading
 import os
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
+BOT_TOKEN = "8509862711:AAH6j7n-6T8izYPX6Bt0xH3oSFSk0LZfiJs"
 API_KEY = "ujiYT1DJIAacgnFB"
 OWNER_ID = 7459756974
 
 authorized_users = set()
-
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Chrome options
-chrome_options = Options()
-chrome_options.add_argument('--headless=new')
-chrome_options.add_argument('--no-sandbox')
-chrome_options.add_argument('--disable-dev-shm-usage')
-chrome_options.add_argument('--disable-gpu')
 
 driver = None
 
 def init_driver():
     global driver
     if driver is None:
-        service = Service()
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        options = uc.ChromeOptions()
+        options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        driver = uc.Chrome(options=options)
     return driver
 
-def take_screenshot(url):
+def solve_cloudflare_and_screenshot(url):
     driver = init_driver()
     driver.get(url)
-    time.sleep(10)
+    
+    try:
+        # Wait for Cloudflare checkbox
+        wait = WebDriverWait(driver, 15)
+        
+        # Try multiple selectors for Cloudflare checkbox
+        checkbox_selectors = [
+            "input[type='checkbox']",
+            "#challenge-stage input",
+            ".mark",
+            "label[for='checkbox']",
+            "div.mark"
+        ]
+        
+        for selector in checkbox_selectors:
+            try:
+                checkbox = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                driver.execute_script("arguments[0].click();", checkbox)
+                print("✅ Clicked Cloudflare checkbox")
+                break
+            except:
+                continue
+        
+        # Wait for verification to complete
+        time.sleep(8)
+        
+    except Exception as e:
+        print(f"⚠️ Auto-click failed: {e}")
+    
+    # Take screenshot after verification
+    time.sleep(5)
     screenshot_path = f"screenshot_{int(time.time())}.png"
     driver.save_screenshot(screenshot_path)
     return screenshot_path
@@ -92,12 +119,12 @@ def vip_attack(message):
         
         def capture_and_send():
             try:
-                screenshot_path = take_screenshot(url)
+                screenshot_path = solve_cloudflare_and_screenshot(url)
                 with open(screenshot_path, 'rb') as photo:
                     bot.send_photo(OWNER_ID, photo, caption=f"📸 Attack by {message.from_user.id}\n🎯 {ip}:{port}\n⏱️ {time_val}s")
                 os.remove(screenshot_path)
             except Exception as e:
-                bot.send_message(OWNER_ID, f"❌ Screenshot failed: {str(e)}")
+                bot.send_message(OWNER_ID, f"❌ Error: {str(e)}")
         
         threading.Thread(target=capture_and_send).start()
         
@@ -106,8 +133,7 @@ def vip_attack(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    bot.reply_to(message, "🟢 Bot is running!\n✅ Chrome ready\n✅ Polling active")
+    bot.reply_to(message, "🟢 Bot running!\n✅ Auto Cloudflare solver active")
 
-print("🤖 Bot starting...")
-print("✅ Using polling (no webhook)")
+print("🤖 Bot starting with undetected-chromedriver...")
 bot.infinity_polling(timeout=60, skip_pending=True)
