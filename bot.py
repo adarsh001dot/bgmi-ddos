@@ -1,20 +1,22 @@
-import asyncio
 import aiohttp
+import asyncio
 from datetime import datetime
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+import nest_asyncio
+import ssl
 
 # ==================== CONFIG ====================
 BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
 MONGO_URI = "mongodb+srv://nikilsaxena843_db_user:3gF2wyT4IjsFt0cY@vipbot.puv6gfk.mongodb.net/?appName=vipbot"
-OWNER_ID = 7459756974  # Your Telegram user ID
+OWNER_ID = 7459756974
 API_URL = "https://susstresser.com/panel/api/api.php"
 API_KEY = "ujiYT1DJIAacgnFB"
 DB_NAME = "vip-ddos-bot"
 
 # ==================== DATABASE SETUP ====================
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, ssl=True, tlsAllowInvalidCertificates=True)
 db = client[DB_NAME]
 users_collection = db['users']
 attack_logs = db['attack_logs']
@@ -92,7 +94,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"❌ *Access Denied!*\n\n"
             f"Hello {user.first_name}, you are not approved yet.\n"
-            f"Contact @owner for approval.\n\n"
+            f"Contact owner for approval.\n\n"
             f"Your ID: `{user_id}`",
             parse_mode='Markdown'
         )
@@ -219,8 +221,12 @@ async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text("❌ Usage: `/approve 123456789`", parse_mode='Markdown')
 
-# ==================== MAIN ====================
-async def main():
+# ==================== MAIN FOR HEROKU ====================
+if __name__ == "__main__":
+    # Heroku ke liye special handling
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -229,8 +235,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_attack))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("🤖 Bot is running...")
-    await app.run_polling()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    print("🤖 Bot is running on Heroku...")
+    
+    # Heroku ke liye yeh tarika use karo
+    app.run_polling()
