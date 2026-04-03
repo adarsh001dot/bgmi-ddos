@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-BOT_TOKEN = "8509862711:AAH6j7n-6T8izYPX6Bt0xH3oSFSk0LZfiJs"
+BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E
 API_KEY = "ujiYT1DJIAacgnFB"
 OWNER_ID = 7459756974
 
