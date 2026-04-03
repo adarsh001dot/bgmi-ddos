@@ -5,6 +5,8 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from flask import Flask, request
+import requests
 
 BOT_TOKEN = "8473566885:AAEMFq8_3dMlfLlAJbjvNzQ6UYDGmktoF-g"
 API_KEY = "ujiYT1DJIAacgnFB"
@@ -13,8 +15,9 @@ OWNER_ID = 7459756974
 authorized_users = set()
 
 bot = telebot.TeleBot(BOT_TOKEN)
+bot.remove_webhook()
 
-# Chrome options - Heroku-24 compatible
+# Chrome options
 chrome_options = Options()
 chrome_options.add_argument('--headless=new')
 chrome_options.add_argument('--no-sandbox')
@@ -112,14 +115,38 @@ def vip_attack(message):
 def status(message):
     bot.reply_to(message, "🟢 Bot is running!\n✅ Chrome ready\n✅ Cloudflare bypass active")
 
-# Flask for Heroku
-from flask import Flask
+# Flask app with webhook
 app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return 'OK', 200
+    return 'Bad Request', 400
 
 @app.route('/')
 def home():
     return "Bot is running!"
 
+# Set webhook on startup
+def set_webhook():
+    heroku_app_name = "vipxofficial-ddos-test-865cf9407a27"
+    webhook_url = f"https://{heroku_app_name}.herokuapp.com/webhook"
+    
+    # Remove old webhook and set new one
+    bot.remove_webhook()
+    time.sleep(1)
+    webhook_response = bot.set_webhook(url=webhook_url)
+    
+    if webhook_response:
+        print(f"✅ Webhook set successfully: {webhook_url}")
+    else:
+        print(f"❌ Webhook setup failed")
+
 if __name__ == "__main__":
-    threading.Thread(target=lambda: bot.infinity_polling(), daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    set_webhook()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
