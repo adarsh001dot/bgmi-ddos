@@ -6,7 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-BOT_TOKEN = "8509862711:AAH6j7n-6T8izYPX6Bt0xH3oSFSk0LZfiJs"
+BOT_TOKEN = "8473566885:AAEMFq8_3dMlfLlAJbjvNzQ6UYDGmktoF-g"
 API_KEY = "ujiYT1DJIAacgnFB"
 OWNER_ID = 7459756974
 
