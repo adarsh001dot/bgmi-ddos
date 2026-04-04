@@ -141,10 +141,8 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 log_attack(user_id, ip, port, 300, 'udp', result)
                 
-                # Delete loading message
                 await loading_msg.delete()
                 
-                # Create initial progress message
                 attack_duration = 300
                 progress_msg = await update.message.reply_text(
                     f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
@@ -158,13 +156,11 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode='Markdown'
                 )
                 
-                # Start timer and progress bar updates
-                for elapsed in range(0, attack_duration + 1, 10):  # Update every 10 seconds
+                for elapsed in range(0, attack_duration + 1, 10):
                     remaining = attack_duration - elapsed
                     bar, percentage = create_progress_bar(elapsed, attack_duration)
                     
-                    # Send alert when 30-40 seconds remaining
-                    if remaining == 35:  # 35 seconds remaining (close to 30-40 range)
+                    if remaining == 35:
                         await update.message.reply_text(
                             f"🚨 *ALERT!* 🚨\n\n"
                             f"Attack will complete in ~{remaining} seconds!\n"
@@ -172,7 +168,6 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode='Markdown'
                         )
                     
-                    # Update progress message
                     try:
                         await progress_msg.edit_text(
                             f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
@@ -186,11 +181,10 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode='Markdown'
                         )
                     except:
-                        pass  # Ignore edit errors if message was deleted
+                        pass
                     
-                    await asyncio.sleep(10)  # Wait 10 seconds before next update
+                    await asyncio.sleep(10)
                 
-                # Attack complete - send final message
                 await progress_msg.delete()
                 await update.message.reply_text(
                     f"✅ *Attack Complete!*\n\n"
@@ -278,7 +272,7 @@ async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Usage: `/approve 123456789`", parse_mode='Markdown')
 
 # ==================== MAIN ====================
-async def main():
+def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -288,7 +282,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     
     print("🤖 Bot is running with Timer & Progress Bar features...")
-    await app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
