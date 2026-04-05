@@ -130,7 +130,7 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Port must be a number!")
         return
     
-    # Sirf link generate karo, API call nahi
+    # Sirf link generate karo
     attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
     
     # Log save karo
@@ -138,7 +138,7 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     attack_duration = 300
     
-    # Progress message start
+    # Progress message start - WITHOUT backticks on link
     progress_msg = await update.message.reply_text(
         f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
         f"🎯 Target: `{ip}:{port}`\n"
@@ -148,11 +148,11 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
         f"└{'─' * 24}┘\n\n"
         f"⏳ Remaining: 300s\n\n"
-        f"🔗 Attack Link:\n`{attack_link}`",
+        f"🔗 Attack Link:\n{attack_link}",
         parse_mode='Markdown'
     )
     
-    # Timer loop - sirf display ke liye
+    # Timer loop
     for elapsed in range(0, attack_duration + 1, 10):
         remaining = attack_duration - elapsed
         bar, percentage = create_progress_bar(elapsed, attack_duration)
@@ -166,7 +166,7 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown'
             )
         
-        # Update progress bar
+        # Update progress bar - WITHOUT backticks on link
         try:
             await progress_msg.edit_text(
                 f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
@@ -177,7 +177,7 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"│  {bar}  {percentage}%  │\n"
                 f"└{'─' * 24}┘\n\n"
                 f"⏳ Remaining: {remaining}s\n\n"
-                f"🔗 Attack Link:\n`{attack_link}`",
+                f"🔗 Attack Link:\n{attack_link}",
                 parse_mode='Markdown'
             )
         except:
@@ -185,14 +185,14 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await asyncio.sleep(10)
     
-    # Attack complete
+    # Attack complete - WITHOUT backticks on link
     await progress_msg.delete()
     await update.message.reply_text(
         f"✅ *Attack Complete!*\n\n"
         f"🎯 Target: `{ip}:{port}`\n"
         f"⏱️ Duration: {attack_duration}s\n"
         f"🔧 Method: UDP\n\n"
-        f"🔗 Your attack link:\n`{attack_link}`",
+        f"🔗 Attack Link:\n{attack_link}",
         parse_mode='Markdown'
     )
 
@@ -254,7 +254,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             msg = "📜 *Last 10 Attacks:*\n\n"
             for log in logs:
-                msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n🔗 Link: {log['attack_link'][:50]}...\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
+                msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
             await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=get_owner_keyboard())
 
 async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
